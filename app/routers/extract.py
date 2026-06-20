@@ -1,6 +1,6 @@
 import base64
 from typing import Optional
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from ..services.pdf_detector import is_text_pdf
@@ -12,7 +12,7 @@ router = APIRouter()
 
 
 class PdfBody(BaseModel):
-    pdfBase64: Optional[str] = None
+    pdfBase64: str
     mimeType: Optional[str] = "application/pdf"
 
 
@@ -26,36 +26,17 @@ class CropBody(BaseModel):
     scale: float = 2.0
 
 
-async def _read_pdf(file: Optional[UploadFile], body: Optional[PdfBody]) -> bytes:
-    if file is not None:
-        return await file.read()
-    if body and body.pdfBase64:
-        return base64.b64decode(body.pdfBase64)
-    raise HTTPException(400, "Provide a PDF as multipart 'file' or JSON 'pdfBase64'.")
-
-
 def _get_pages(pdf_bytes: bytes):
     if is_text_pdf(pdf_bytes):
         return extract_pages_text(pdf_bytes), "text"
-    # OCR fallback — heavy; import lazily
     from ..services.ocr_pipeline import extract_pages_ocr
     return extract_pages_ocr(pdf_bytes), "ocr"
 
 
 @router.post("/extract")
 async def extract(body: PdfBody):
-    if not body.pdfBase64:
-        raise HTTPException(400, "pdfBase64 required")
-    pdf_bytes = base64.b64decode(body.pdfBase64)
     try:
-        pages, mode = _get_pages(pdf_bytes)
-        result = parse_questions(pages)
-        result["questions"] = attach_diagram_crops(pdf_bytes, result["questions"])
-        result["extractionMode"] = mode
-        return result
-    except Exception as e:
-        raise HTTPException(500, f"Extraction failed: {e}")
-    try:
+        pdf_bytes = base64.b64decode(body.pdfBase64)
         pages, mode = _get_pages(pdf_bytes)
         result = parse_questions(pages)
         result["questions"] = attach_diagram_crops(pdf_bytes, result["questions"])
@@ -66,10 +47,13 @@ async def extract(body: PdfBody):
 
 
 @router.post("/extract-answer-key")
-async def extract_answer_key(body: Optional[PdfBody] = None, file: Optional[UploadFile] = File(None)):
-    pdf_bytes = await _read_pdf(file, body)
-    pages, _ = _get_pages(pdf_bytes)
-    return {"answerKey": parse_answer_key_only(pages)}
+async def extract_answer_key(body: PdfBody):
+    try:
+        pdf_bytes = base64.b64decode(body.pdfBase64)
+        pages, _ = _get_pages(pdf_bytes)
+        return {"answerKey": parse_answer_key_only(pages)}
+    except Exception as e:
+        raise HTTPException(500, f"Answer key extraction failed: {e}")
 
 
 @router.post("/crop-region")
