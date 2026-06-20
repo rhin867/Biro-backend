@@ -27,12 +27,15 @@ SUBJECT_HEADERS = {
 
 
 def _guess_subject(running_subject: str, line: str) -> str:
+    marker = re.match(r"\[SUBJECT:(Mathematics|Physics|Chemistry|Maths)\]", line.strip())
+    if marker:
+        s = marker.group(1)
+        return "Maths" if s == "Mathematics" else s
     up = line.strip().upper()
     for k, v in SUBJECT_HEADERS.items():
         if k in up and len(up) < 60:
             return v
     return running_subject
-
 
 def parse_questions(pages: List[Dict]) -> Dict:
     """pages: [{page_number, text}, ...] -> {questions, answerKey, examTitle?}"""
