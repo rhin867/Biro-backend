@@ -43,8 +43,18 @@ def _get_pages(pdf_bytes: bytes):
 
 
 @router.post("/extract")
-async def extract(body: Optional[PdfBody] = None, file: Optional[UploadFile] = File(None)):
-    pdf_bytes = await _read_pdf(file, body)
+async def extract(body: PdfBody):
+    if not body.pdfBase64:
+        raise HTTPException(400, "pdfBase64 required")
+    pdf_bytes = base64.b64decode(body.pdfBase64)
+    try:
+        pages, mode = _get_pages(pdf_bytes)
+        result = parse_questions(pages)
+        result["questions"] = attach_diagram_crops(pdf_bytes, result["questions"])
+        result["extractionMode"] = mode
+        return result
+    except Exception as e:
+        raise HTTPException(500, f"Extraction failed: {e}")
     try:
         pages, mode = _get_pages(pdf_bytes)
         result = parse_questions(pages)
