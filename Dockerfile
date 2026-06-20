@@ -1,6 +1,5 @@
 FROM python:3.11-slim
 
-# System deps for pdf2image (poppler), opencv, paddleocr
 RUN apt-get update && apt-get install -y --no-install-recommends \
     poppler-utils \
     libgl1 \
@@ -8,7 +7,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsm6 \
     libxrender1 \
     libxext6 \
-    ccache \
+    tesseract-ocr \
+    tesseract-ocr-eng \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
